@@ -1,0 +1,9 @@
+{
+  "uid": "agent-001",
+  "server_uri": "https://localhost:8080",
+  "request_interval": 10,
+  "max_retry_interval": 60,
+  "tasks_folder": "./tasks",
+  "results_folder": "./results",
+  "log_file": "./logs/agent.log"
+}
