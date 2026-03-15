@@ -1,6 +1,7 @@
 {
-  "uid": "agent-001",
-  "server_uri": "https://localhost:8080",
+  "uid": "007",
+  "descr": "web-agent",
+  "server_uri": "https://xdev.arkcom.ru:9999/app/webagent1/api/",
   "request_interval": 10,
   "max_retry_interval": 60,
   "tasks_folder": "./tasks",

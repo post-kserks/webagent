@@ -1,106 +1,108 @@
 # Формат API и JSON-инструкций
-WEB-AGENT взаимодействует с сервером по протоколу HTTP/HTTPS путем отправки POST-запросов с телом в формате JSON.
+WEB-AGENT взаимодействует с сервером по протоколу HTTP/HTTPS.
 
 ## 1. API Сервера
 
-### 1.1 `POST /api/v1/agent/register`
-**Описание:** Регистрация агента и получение сессии.
-**Запрос:**
+### 1.1 Регистрация Веб-агента
+**URI:** `https://xdev.arkcom.ru:9999/app/webagent1/api/wa_reg/`
+**Method:** POST
+**Запрос (JSON):**
 ```json
 {
-  "uid": "agent-001"
+  "UID": "007",
+  "descr": "web-agent"
 }
 ```
-**Ответ (200 OK):**
+**Ответ (JSON) - Успех:**
 ```json
 {
-  "status": "ok",
-  "session_id": "sess-a1b2c3d4"
+  "code_responce": "0",
+  "msg": "Регистрация прошла успешно",
+  "access_code": "594807-1ddb-36af-9616-d8ed2b9d"
 }
 ```
-**Ответ (403 Forbidden):** Агент заблокирован на сервере (запрет регистрации).
-
-### 1.2 `POST /api/v1/agent/task`
-**Описание:** Запрос новой задачи на выполнение.
-**Запрос:**
+**Ответ (JSON) - Агент уже зарегистрирован (или ошибка):**
 ```json
 {
-  "uid": "agent-001",
-  "session_id": "sess-a1b2c3d4"
-}
-```
-**Ответ (200 OK) - Есть задача:**
-```json
-{
-  "status": "ok",
-  "task": {
-    "id": "task-999",
-    "type": "<тип_задачи>",
-    "instruction": { /* параметры */ }
-  }
-}
-```
-**Ответ (200 OK) - Нет задачи:**
-```json
-{
-  "status": "no_task"
-}
-```
-*(Вместо этого может использоваться код 204 No Content)*
-
-### 1.3 `POST /api/v1/agent/result`
-**Описание:** Отправка результата выполнения задачи на сервер. Для передачи больших файлов должен использоваться `multipart/form-data`, но текстовый лог передаётся в JSON.
-**Запрос:**
-```json
-{
-  "uid": "agent-001",
-  "session_id": "sess-a1b2c3d4",
-  "task_id": "task-999",
-  "exit_code": 0,
-  "execution_log": "Текст стандартного вывода (stdout + stderr)"
-}
-```
-**Ответ (200 OK):**
-```json
-{
-  "status": "ok"
+  "code_responce": "-3",
+  "msg": "Такой агент уже зарегистрирован"
 }
 ```
 
-## 2. Формат JSON-инструкций (внутри объекта `task`)
-
-### 2.1 Выполнение системной команды (`system_command`)
+### 1.2 Запрос на задание
+**URI:** `https://xdev.arkcom.ru:9999/app/webagent1/api/wa_task/`
+**Method:** POST
+**Запрос (JSON):**
 ```json
 {
-  "type": "system_command",
-  "id": "task-001",
-  "instruction": {
-    "command": "uname -a"
-  }
+  "UID": "007",
+  "descr": "web-agent",
+  "access_code": "12588b-3d8c-718e-55f4-6ed26b57"
+}
+```
+**Ответ (JSON) - Задание есть (1):**
+```json
+{
+  "code_responce": "1",
+  "task_code": "CONF",
+  "options": {},
+  "session_id": "bvLeD2gv-gtKH-IhmW-rsfd-Ejn1kyweawwi",
+  "status": "RUN"
+}
+```
+**Ответ (JSON) - Задания нет (0):**
+```json
+{
+  "code_responce": "0",
+  "status": "WAIT"
+}
+```
+**Ответ (JSON) - Ошибка в запросе (< 0):**
+```json
+{
+  "code_responce": "-2",
+  "msg": "неверный код доступа"
 }
 ```
 
-### 2.2 Запуск программы (`run_program`)
+### 1.3 Результат выполнения задания
+**URI:** `https://xdev.arkcom.ru:9999/app/webagent1/api/wa_result/`
+**Method:** POST
+**Запрос (multipart/form-data):**
+Поля:
+* `result_code`: код результата (0 - ок; < 0 - код ошибки)
+* `result`: JSON строка с содержанием действий по заданию
+* `file1`: файл 1 (если есть)
+* `file2`: файл 2 (если есть)
+* `file3`: файл 3 ...
+
+**Структура JSON в поле `result`:**
 ```json
 {
-  "type": "run_program",
-  "id": "task-002",
-  "instruction": {
-    "executable": "/usr/bin/python3",
-    "args": ["script.py", "--verbose"],
-    "working_dir": "/tmp"
-  }
+  "UID": "007",
+  "access_code": "12588b-3d8c-718e-55f4-6ed26b57",
+  "message": "задание выполнено" (или "задание не выполнено"),
+  "files": 3,
+  "session_id": "ieLOLGzL-nyGP-mfG5-m3nI-eYL1CZzcaXzO"
 }
 ```
 
-### 2.3 Передача файла на сервер (`upload_file`)
+**Ответ (JSON) - Успех:**
 ```json
 {
-  "type": "upload_file",
-  "id": "task-003",
-  "instruction": {
-    "file_path": "/var/log/syslog"
-  }
+  "code_responce": "0",
+  "msg": "ok"
 }
 ```
-*Примечание:* Сервер в ответ на результат этой команды будет ждать multipart HTTP запрос с файлом на специальный endpoint, например `/api/v1/agent/upload`, в котором будет указан `task_id` и сам файл.
+**Ответ (JSON) - Ошибка загрузки файлов:**
+```json
+{
+  "code_responce": "-3",
+  "msg": "не все файлы загружены",
+  "status": "ERROR"
+}
+```
+
+## 2. Логика полей `task_code` и `options` (внутри ответа на задание)
+При получении задачи сервер возвращает `task_code` (например, "CONF", "SYS_CMD", "RUN_PROG") и `options` (параметры выполнения, обычно JSON-строка или текст аргументов).
+Агент парсит значение и запускает соответствующий обработчик.

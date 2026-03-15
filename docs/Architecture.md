@@ -40,19 +40,19 @@ graph TD
 **Методы:** `log(level, module, message)`, а также шорткаты `info()`, `error()` и т.д.
 
 ### 2.4 SessionManager
-**Ответственность:** Управление аутентификацией, хранение состояния сессии (UID, Session ID).
-**Поля:** `uid`, `session_id`, `is_registered`.
+**Ответственность:** Управление аутентификацией, хранение состояния сессии (UID, Access Code).
+**Поля:** `uid`, `descr`, `access_code`, `is_registered`.
 **Методы:**
-* `register_agent(http_client)`: Запрос на сервер по ручке `/register`. При успехе сохраняет `session_id`.
-* `get_session_id()`: Получить текущий Session ID.
-* `reset_session()`: Сброс текущей сессии при ошибке авторизации.
+* `register_agent(http_client)`: Запрос на сервер по ручке `/wa_reg/`. При успехе сохраняет `access_code`.
+* `get_access_code()`: Получить текущий Access Code.
+* `reset_session()`: Сброс текущей регистрации при ошибке авторизации (например, неверный код).
 
 ### 2.5 TaskManager
 **Ответственность:** Обрабатывает запрос задач у сервера, управляет очередью (если применимо) и отправкой результата.
 **Поля:** `http_client_`, `session_manager_`.
 **Методы:**
-* `fetch_task()`: Запрос к `/task`. Разбирает JSON-задачу (тип, id, поля).
-* `send_result(task_id, exit_code, log, files)`: Отправляет данные и лог (STDOUT/STDERR модуля) на сервер через `/result`.
+* `fetch_task()`: Запрос к `/wa_task/`. Разбирает JSON-задачу (`task_code`, `session_id`, `options`).
+* `send_result(session_id, result_code, result_json, files)`: Отправляет данные (в формате multipart/form-data) на сервер через `/wa_result/`.
 
 ### 2.6 TaskExecutor
 **Ответственность:** Изолированный запуск процессов (команд), мониторинг их выполнения, захват stderr/stdout.
@@ -65,16 +65,16 @@ graph TD
 ### 2.7 HttpClient
 **Ответственность:** Абстракция над HTTP (например, библиотека CPR или libcurl).
 **Поля:** Базовый `server_uri`.
-**Методы:** `post(endpoint, json_payload)`, `upload_file(endpoint, file_path)`. Возвращает структуру с HTTP-статусом и телом ответа.
+**Методы:** `post(endpoint, json_payload)`, `post_multipart(endpoint, multipart_payload)`. Возвращает структуру с HTTP-статусом и телом ответа.
 
 ---
 
 ## 3. Логика сессий
 1. Агент стартует и читает `config.json`.
-2. Вызывает `SessionManager::register_agent`. Отправляет свой `uid`.
-3. Если сервер отвечает `200 OK` и даёт `session_id`, сессия считается активной.
-4. При каждом запросе `/task` или `/result` передаются `uid` и `session_id`.
-5. Если сервер отвечает `401 Unauthorized` или `403 Forbidden` (сессия истекла или скомпрометирована), `session_id` очищается, и агент переходит к шагу 2.
+2. Вызывает `SessionManager::register_agent`. Отправляет свой `UID` и `descr`.
+3. Если сервер отвечает `code_responce: "0"` и даёт `access_code`, сессия считается активной.
+4. При каждом запросе `/wa_task/` передаются `UID`, `descr` и `access_code`. Каждая задача содержит уникальный временный `session_id`.
+5. Если сервер отвечает `code_responce: "-2"` (ошибка, неверный код), `access_code` очищается, и агент переходит к шагу 2.
 
 ---
 
@@ -108,19 +108,19 @@ sequenceDiagram
     participant S as Server
     
     A->>SM: register()
-    SM->>S: POST /register {uid}
-    S-->>SM: 200 OK {session_id}
+    SM->>S: POST /wa_reg/ {UID, descr}
+    S-->>SM: 200 OK {code_responce: "0", access_code}
     loop Главный цикл (request_interval таймер)
         A->>TM: fetch_task()
-        TM->>S: POST /task {uid, session_id}
-        alt Есть задача
-            S-->>TM: 200 OK {task_id, type, instruction}
+        TM->>S: POST /wa_task/ {UID, descr, access_code}
+        alt Есть задача (1)
+            S-->>TM: 200 OK {task_code, session_id, options, status: "RUN"}
             TM->>TE: execute(task)
-            TE-->>TM: result(exit_code, stdout/stderr)
-            TM->>S: POST /result {task_id, exit_code, log}
-            S-->>TM: 200 OK
-        else Нет задачи
-            S-->>TM: 204 No Content (или HTTP 200 "status": "no_task")
+            TE-->>TM: result(exit_code, log)
+            TM->>S: POST /wa_result/ multipart/form-data {result_code, result: JSON, files...}
+            S-->>TM: 200 OK {code_responce: "0"}
+        else Нет задачи (0)
+            S-->>TM: 200 OK {code_responce: "0", status: "WAIT"}
         end
     end
 ```
