@@ -1,5 +1,5 @@
 {
-  "uid": "007",
+  "uid": "007_james_bong",
   "descr": "web-agent",
   "server_uri": "https://xdev.arkcom.ru:9999/app/webagent1/api/",
   "request_interval": 10,
