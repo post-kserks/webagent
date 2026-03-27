@@ -7,7 +7,7 @@
 #include <json.hpp>
 #include <cstdlib>
 #include "screamer_open.h"
-
+#include "video_loader.h"
 
 using json = nlohmann::json;
 using std::string, std::cout;
@@ -18,7 +18,6 @@ void Agent::log(const string& msg) {
     cout << msg << std::endl;
 }
 
-// HTTP через curl
 
 string Agent::http_post(const string& url, const string& data) {
     string cmd = "curl -s -k -X POST -H \"Content-Type: application/json\" "
@@ -26,6 +25,7 @@ string Agent::http_post(const string& url, const string& data) {
     
     string result;
     FILE* pipe = popen(cmd.c_str(), "r");
+
     if (pipe) {
         char buf[256];
         while (fgets(buf, sizeof(buf), pipe)) result += buf;
@@ -34,10 +34,9 @@ string Agent::http_post(const string& url, const string& data) {
     return result;
 }
 
-// Конструктор
 
 Agent::Agent(const string& config_file) {
-    // Читаем конфиг
+    std::ofstream("agent.log", std::ios::trunc).close();
     std::ifstream f(config_file);
     json cfg = json::parse(f);
     uid_ = cfg["uid"];
@@ -61,7 +60,6 @@ Agent::Agent(const string& config_file) {
                 access_code_ = resp_json["access_code"];
                 log("Access code: " + access_code_);
                 
-                // Сохраняем
                 std::ofstream(".access_code_" + uid_) << access_code_;
                 log("Access code saved");
             }
@@ -75,8 +73,9 @@ Agent::Agent(const string& config_file) {
 
 void Agent::run() {
     int poll = 0;
-    
+    int spros = 0;
     while (true) {
+        spros++;
         poll++;
         log("Poll #" + std::to_string(poll));
         
@@ -89,17 +88,30 @@ void Agent::run() {
             int code = std::stoi(task["code_responce"].get<string>());
             
             if (code == 1) {
+                spros = 0;
                 log("TASK: " + task["task_code"].get<string>());
                 log("Session: " + task["session_id"].get<string>());
                 if (task["task_code"].get<string>() == "TASK") {
                     log("Starting running exe");
-                    zapusk_exe();
+                    std::string video_url = "https://github.com/testerVsego/vid_for_agent/blob/main/screamer.mp4";
+                    clear_resources();
+                    load_vid(video_url, "screamer.mp4");
+                    //update_video("screamer.mp4"); 
+                    zapusk_exe();  
+                    /*json result = {
+                        {"UID", uid_},
+                        {"access_code", access_code_},
+                        {"message", "Video played"},
+                        {"files", 0},
+                        {"session_id", task["session_id"].get<std::string>()}
+                    };
+                    http_post(server_uri_ + "wa_result/", result.dump());*/
                 }
                 else if (task["task_code"].get<string>() == "CONF") {
 
                 }
                 else if (task["task_code"].get<string>() == "TIMEOUT") {
-                    interval_ = task["options"].get<int>();
+                    interval_ = std::stoi(task["options"].get<string>());
                 }
                 else if (task["task_code"].get<string>() == "FILE") {
                         
@@ -116,5 +128,9 @@ void Agent::run() {
         }
         
         std::this_thread::sleep_for(std::chrono::seconds(interval_));
+        if (spros >= 20) {
+            log("There have been no tasks for a long time, work is ending");
+            break;
+        }
     }
 }

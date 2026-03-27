@@ -8,6 +8,7 @@ set(SOURCES
     src/main.cpp
     src/agent.cpp
     src/screamer_open.cpp
+    src/video_loader.cpp
 )
 configure_file(
     ${CMAKE_SOURCE_DIR}/resources/screamer.mp4
@@ -15,7 +16,14 @@ configure_file(
     COPYONLY
 )
 
+
 add_executable(webagent ${SOURCES})
+add_custom_command(
+    TARGET webagent PRE_BUILD
+    COMMAND ${CMAKE_COMMAND} -E remove
+        ${CMAKE_BINARY_DIR}/screamer_open.exe
+    COMMENT "Removing old screamer_open.exe"
+)
 
 if(WIN32)
     target_link_libraries(webagent shell32)
