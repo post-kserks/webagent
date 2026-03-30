@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WEB-AGENT Control Panel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Sora:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="glow glow-left" aria-hidden="true"></div>
+  <div class="glow glow-right" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">WEB-AGENT</p>
+      <h1>Панель управления агентом</h1>
+      <p class="subtitle">Один экран для задач и статусов сессии</p>
+    </div>
+    <button id="mock-toggle" class="chip" type="button">API: Mock</button>
+  </header>
+
+  <main class="layout">
+    <section class="panel panel-hero reveal">
+      <div>
+        <h2>Структура сайта</h2>
+        <p>
+          Основа состоит из трёх блоков: профиль агента, конструктор задач и журнал выполнения.
+          Интерфейс сфокусирован на задачах и состоянии агента без лишних панелей.
+        </p>
+      </div>
+      <div class="hero-metrics">
+        <article>
+          <span>UID</span>
+          <strong id="metric-uid">007_james_bong</strong>
+        </article>
+        <article>
+          <span>Интервал опроса</span>
+          <strong id="metric-interval">5 сек</strong>
+        </article>
+        <article>
+          <span>Очередь задач</span>
+          <strong id="metric-queue">0</strong>
+        </article>
+      </div>
+    </section>
+
+    <section class="grid">
+      <article class="panel reveal" style="--delay: 60ms">
+        <h3>1. Профиль агента</h3>
+        <form id="agent-form" class="stack">
+          <label>
+            UID
+            <input id="uid-input" name="uid" value="007_james_bong" required />
+          </label>
+          <label>
+            Description
+            <input id="descr-input" name="descr" value="web-agent" required />
+          </label>
+          <label>
+            Base API URL
+            <input id="api-input" name="api" value="https://xdev.arkcom.ru:9999/app/webagent1/api/" required />
+          </label>
+          <label>
+            Local Control API
+            <input id="control-api-input" name="controlApi" value="http://127.0.0.1:8787" required />
+          </label>
+          <label>
+            Интервал запроса (сек)
+            <input id="interval-input" name="interval" type="number" min="1" value="5" required />
+          </label>
+          <button type="submit">Сохранить профиль</button>
+        </form>
+      </article>
+
+      <article class="panel reveal" style="--delay: 120ms">
+        <h3>2. Конструктор задачи</h3>
+        <form id="task-form" class="stack">
+          <label>
+            Тип задачи
+            <select id="task-code" name="taskCode">
+              <option value="TASK">TASK (видео)</option>
+              <option value="FILE">FILE (файлы)</option>
+              <option value="TIMEOUT">TIMEOUT (интервал)</option>
+              <option value="CONF">CONF (остановка)</option>
+            </select>
+          </label>
+
+          <div id="task-options" class="stack"></div>
+
+          <button type="submit">Добавить в очередь</button>
+        </form>
+      </article>
+
+      <article class="panel panel-wide reveal" style="--delay: 240ms">
+        <h3>3. Очередь задач</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Task Code</th>
+              <th>Options</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="queue-body"></tbody>
+        </table>
+      </article>
+
+      <article class="panel panel-wide reveal" style="--delay: 300ms">
+        <h3>Журнал активности</h3>
+        <ul id="activity-log" class="activity"></ul>
+      </article>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

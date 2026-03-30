@@ -1,4 +1,5 @@
 #include "../include/video_loader.h"
+#include <cctype>
 #include <cstdlib>
 #include <string>
 #include <filesystem>
@@ -35,18 +36,59 @@ bool load_vid(const std::string& github_url, const std::string& filename) {
     return system(command.c_str()) == 0;
 }
 bool clear_resources() {
-    #ifdef _WIN32
-        return system("del /Q screamer.mp4 2>nul") == 0;
-    #elif defined(__APPLE__)
-        // macOS uses the same filesystem operations as Linux
-        if (std::filesystem::exists("screamer.mp4")) {
-            return std::filesystem::remove("screamer.mp4");
+    auto is_screamer_video = [](const std::filesystem::path& p) {
+        const std::string name = p.filename().string();
+        if (name == "screamer.mp4") {
+            return true;
+        }
+
+        const std::string prefix = "screamer";
+        const std::string suffix = ".mp4";
+
+        if (name.size() <= prefix.size() + suffix.size()) {
+            return false;
+        }
+        if (name.rfind(prefix, 0) != 0) {
+            return false;
+        }
+        if (name.substr(name.size() - suffix.size()) != suffix) {
+            return false;
+        }
+
+        const std::string middle = name.substr(
+            prefix.size(),
+            name.size() - prefix.size() - suffix.size()
+        );
+        if (middle.empty()) {
+            return false;
+        }
+
+        for (unsigned char ch : middle) {
+            if (!std::isdigit(ch)) {
+                return false;
+            }
         }
         return true;
-    #else
-        if (std::filesystem::exists("screamer.mp4")) {
-            return std::filesystem::remove("screamer.mp4");
+    };
+
+    bool ok = true;
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(".", ec)) {
+        if (ec) {
+            return false;
         }
-        return true;
-    #endif
+        if (!entry.is_regular_file()) {
+            continue;
+        }
+        if (!is_screamer_video(entry.path())) {
+            continue;
+        }
+        std::filesystem::remove(entry.path(), ec);
+        if (ec) {
+            ok = false;
+            ec.clear();
+        }
+    }
+
+    return ok;
 }

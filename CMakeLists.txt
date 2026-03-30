@@ -9,6 +9,8 @@ set(SOURCES
     src/agent.cpp
     src/screamer_open.cpp
     src/video_loader.cpp
+    src/frontend_launcher.cpp
+    src/local_control_server.cpp
 )
 configure_file(
     ${CMAKE_SOURCE_DIR}/resources/screamer.mp4
@@ -26,5 +28,5 @@ add_custom_command(
 )
 
 if(WIN32)
-    target_link_libraries(webagent shell32)
+    target_link_libraries(webagent shell32 ws2_32)
 endif()

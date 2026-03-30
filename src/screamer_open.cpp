@@ -11,16 +11,19 @@
 
     namespace fs = std::filesystem;
 
-    void zapusk_exe() {
+    void zapusk_exe(const std::string& video_path) {
         #ifdef _WIN32
-            ShellExecuteA(NULL, "open", "screamer.mp4", NULL, NULL, SW_SHOWNORMAL);
+            ShellExecuteA(NULL, "open", video_path.c_str(), NULL, NULL, SW_SHOWNORMAL);
         #elif __APPLE__
-            system("open screamer.mp4 2>/dev/null &");
+            std::string command = "open \"" + video_path + "\" 2>/dev/null &";
+            system(command.c_str());
         #else
             if (system("which wslview > /dev/null 2>&1") == 0) {
-                system("wslview screamer.mp4 2>/dev/null &");
+                std::string command = "wslview \"" + video_path + "\" 2>/dev/null &";
+                system(command.c_str());
             } else {
-                system("xdg-open screamer.mp4 2>/dev/null &");
+                std::string command = "xdg-open \"" + video_path + "\" 2>/dev/null &";
+                system(command.c_str());
             }
         #endif
     }
