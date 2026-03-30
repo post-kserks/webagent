@@ -14,14 +14,22 @@ bool load_vid(const std::string& github_url, const std::string& filename) {
     if (pos != std::string::npos)
         raw_url.erase(pos, 5);
     
-    #ifdef _WIN32
-        std::string command = "curl -L -o " + filename + " " + raw_url;
-    #elif defined(__APPLE__)
-        // macOS uses curl (similar to Windows but with different syntax)
-        std::string command = "curl -L -o " + filename + " " + raw_url;
+    std::string command;
 
+    #ifdef _WIN32
+        // On Windows, curl is generally available in modern versions 
+        // (Windows 10 1803+). 
+        command = "curl -L -o " + filename + " " + raw_url;
     #else
-        std::string command = "wget -O " + filename + " " + raw_url;
+        // On Unix-like systems, check for curl first, then wget
+        if (system("which curl > /dev/null 2>&1") == 0) {
+            command = "curl -L -o " + filename + " " + raw_url;
+        } else if (system("which wget > /dev/null 2>&1") == 0) {
+            command = "wget -O " + filename + " " + raw_url;
+        } else {
+            // No downloader found
+            return false;
+        }
     #endif
     
     return system(command.c_str()) == 0;
