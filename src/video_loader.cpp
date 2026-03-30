@@ -16,6 +16,10 @@ bool load_vid(const std::string& github_url, const std::string& filename) {
     
     #ifdef _WIN32
         std::string command = "curl -L -o " + filename + " " + raw_url;
+    #elif defined(__APPLE__)
+        // macOS uses curl (similar to Windows but with different syntax)
+        std::string command = "curl -L -o " + filename + " " + raw_url;
+
     #else
         std::string command = "wget -O " + filename + " " + raw_url;
     #endif
@@ -25,6 +29,12 @@ bool load_vid(const std::string& github_url, const std::string& filename) {
 bool clear_resources() {
     #ifdef _WIN32
         return system("del /Q screamer.mp4 2>nul") == 0;
+    #elif defined(__APPLE__)
+        // macOS uses the same filesystem operations as Linux
+        if (std::filesystem::exists("screamer.mp4")) {
+            return std::filesystem::remove("screamer.mp4");
+        }
+        return true;
     #else
         if (std::filesystem::exists("screamer.mp4")) {
             return std::filesystem::remove("screamer.mp4");
