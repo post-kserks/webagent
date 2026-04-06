@@ -5,6 +5,9 @@
 [![C++](https://img.shields.io/badge/Language-C%2B%2B17-blue.svg)](https://isocpp.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](#)
+[![CI](https://github.com/post-kserks/webagent/actions/workflows/ci.yml/badge.svg)](https://github.com/post-kserks/webagent/actions/workflows/ci.yml)
+[![CD Release](https://github.com/post-kserks/webagent/actions/workflows/cd-release.yml/badge.svg)](https://github.com/post-kserks/webagent/actions/workflows/cd-release.yml)
+[![Release](https://img.shields.io/github/v/release/post-kserks/webagent)](https://github.com/post-kserks/webagent/releases)
 
 ---
 

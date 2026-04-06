@@ -1,10 +1,7 @@
 #include "local_control_server.h"
+#include "local_control_http_utils.h"
 
-#include <algorithm>
 #include <array>
-#include <cctype>
-#include <cstring>
-#include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
@@ -30,18 +27,6 @@ using socket_t = int;
 constexpr socket_t kInvalidSocket = -1;
 #endif
 
-std::string trim_copy(const std::string& value) {
-    size_t begin = 0;
-    while (begin < value.size() && std::isspace(static_cast<unsigned char>(value[begin]))) {
-        ++begin;
-    }
-    size_t end = value.size();
-    while (end > begin && std::isspace(static_cast<unsigned char>(value[end - 1]))) {
-        --end;
-    }
-    return value.substr(begin, end - begin);
-}
-
 void close_socket(socket_t fd) {
 #ifdef _WIN32
     closesocket(fd);
@@ -62,134 +47,6 @@ bool send_all(socket_t fd, const std::string& data) {
         offset += static_cast<size_t>(sent);
     }
     return true;
-}
-
-std::string make_http_response(
-    int code,
-    const std::string& status,
-    const std::string& body,
-    const std::string& content_type = "application/json"
-) {
-    std::ostringstream out;
-    out << "HTTP/1.1 " << code << " " << status << "\r\n";
-    out << "Content-Type: " << content_type << "\r\n";
-    out << "Access-Control-Allow-Origin: *\r\n";
-    out << "Access-Control-Allow-Headers: Content-Type\r\n";
-    out << "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n";
-    out << "Connection: close\r\n";
-    out << "Content-Length: " << body.size() << "\r\n";
-    out << "\r\n";
-    out << body;
-    return out.str();
-}
-
-std::string escape_json(const std::string& input) {
-    std::string out;
-    out.reserve(input.size());
-    for (char ch : input) {
-        switch (ch) {
-            case '\\': out += "\\\\"; break;
-            case '"': out += "\\\""; break;
-            case '\n': out += "\\n"; break;
-            case '\r': out += "\\r"; break;
-            case '\t': out += "\\t"; break;
-            default: out += ch; break;
-        }
-    }
-    return out;
-}
-
-std::string lowercase_copy(const std::string& input) {
-    std::string out = input;
-    std::transform(out.begin(), out.end(), out.begin(), [](unsigned char ch) {
-        return static_cast<char>(std::tolower(ch));
-    });
-    return out;
-}
-
-std::string json_extract_video_field(const std::string& body) {
-    const std::string key = "\"video\"";
-    size_t key_pos = body.find(key);
-    if (key_pos == std::string::npos) {
-        return "";
-    }
-    size_t colon = body.find(':', key_pos + key.size());
-    if (colon == std::string::npos) {
-        return "";
-    }
-    size_t first_quote = body.find('"', colon + 1);
-    if (first_quote == std::string::npos) {
-        return "";
-    }
-    std::string value;
-    bool escaping = false;
-    for (size_t i = first_quote + 1; i < body.size(); ++i) {
-        const char ch = body[i];
-        if (escaping) {
-            switch (ch) {
-                case 'n': value.push_back('\n'); break;
-                case 'r': value.push_back('\r'); break;
-                case 't': value.push_back('\t'); break;
-                default: value.push_back(ch); break;
-            }
-            escaping = false;
-            continue;
-        }
-        if (ch == '\\') {
-            escaping = true;
-            continue;
-        }
-        if (ch == '"') {
-            return trim_copy(value);
-        }
-        value.push_back(ch);
-    }
-    return "";
-}
-
-bool parse_request_line(
-    const std::string& request_line,
-    std::string& method,
-    std::string& path
-) {
-    std::istringstream in(request_line);
-    std::string version;
-    if (!(in >> method >> path >> version)) {
-        return false;
-    }
-    if (path.empty()) {
-        return false;
-    }
-    return true;
-}
-
-int parse_content_length(const std::string& headers) {
-    std::istringstream in(headers);
-    std::string line;
-    while (std::getline(in, line)) {
-        if (!line.empty() && line.back() == '\r') {
-            line.pop_back();
-        }
-        const std::string lower = lowercase_copy(line);
-        if (lower.rfind("content-length:", 0) == 0) {
-            const std::string raw = trim_copy(line.substr(std::strlen("Content-Length:")));
-            try {
-                const int value = std::stoi(raw);
-                return value < 0 ? 0 : value;
-            } catch (...) {
-                return 0;
-            }
-        }
-    }
-    return 0;
-}
-
-std::string strip_query_string(const std::string& path) {
-    const size_t pos = path.find('?');
-    if (pos == std::string::npos) {
-        return path;
-    }
-    return path.substr(0, pos);
 }
 } // namespace
 
@@ -329,7 +186,7 @@ void LocalControlServer::server_loop() {
                 if (header_end_pos != std::string::npos) {
                     header_parsed = true;
                     const std::string headers = request.substr(0, header_end_pos + 4);
-                    content_length = parse_content_length(headers);
+                    content_length = local_control_http_utils::parse_content_length(headers);
                 }
             }
 
@@ -341,7 +198,7 @@ void LocalControlServer::server_loop() {
             }
         }
 
-        std::string response = make_http_response(
+        std::string response = local_control_http_utils::make_http_response(
             400, "Bad Request", "{\"ok\":false,\"error\":\"bad request\"}"
         );
 
@@ -350,17 +207,20 @@ void LocalControlServer::server_loop() {
             const std::string request_line = request.substr(0, line_end);
             std::string method;
             std::string path;
-            if (parse_request_line(request_line, method, path)) {
-                const std::string clean_path = strip_query_string(path);
+            if (local_control_http_utils::parse_request_line(request_line, method, path)) {
+                const std::string clean_path = local_control_http_utils::strip_query_string(path);
 
                 if (method == "OPTIONS") {
-                    response = make_http_response(204, "No Content", "", "text/plain");
+                    response = local_control_http_utils::make_http_response(
+                        204, "No Content", "", "text/plain"
+                    );
                 } else if (clean_path == "/api/selected-video" && method == "GET") {
                     const std::string selected = get_video_handler_ ? get_video_handler_() : "";
-                    response = make_http_response(
+                    response = local_control_http_utils::make_http_response(
                         200,
                         "OK",
-                        "{\"ok\":true,\"video\":\"" + escape_json(selected) + "\"}"
+                        "{\"ok\":true,\"video\":\"" +
+                            local_control_http_utils::escape_json(selected) + "\"}"
                     );
                 } else if (clean_path == "/api/selected-video" && method == "POST") {
                     std::string body;
@@ -368,9 +228,9 @@ void LocalControlServer::server_loop() {
                     if (body_pos != std::string::npos) {
                         body = request.substr(body_pos + 4);
                     }
-                    const std::string video = json_extract_video_field(body);
+                    const std::string video = local_control_http_utils::json_extract_video_field(body);
                     if (video.empty()) {
-                        response = make_http_response(
+                        response = local_control_http_utils::make_http_response(
                             400,
                             "Bad Request",
                             "{\"ok\":false,\"error\":\"video is required\"}"
@@ -378,9 +238,11 @@ void LocalControlServer::server_loop() {
                     } else {
                         const bool accepted = set_video_handler_ ? set_video_handler_(video) : false;
                         if (accepted) {
-                            response = make_http_response(200, "OK", "{\"ok\":true}");
+                            response = local_control_http_utils::make_http_response(
+                                200, "OK", "{\"ok\":true}"
+                            );
                         } else {
-                            response = make_http_response(
+                            response = local_control_http_utils::make_http_response(
                                 400,
                                 "Bad Request",
                                 "{\"ok\":false,\"error\":\"invalid video value\"}"
@@ -388,7 +250,7 @@ void LocalControlServer::server_loop() {
                         }
                     }
                 } else {
-                    response = make_http_response(
+                    response = local_control_http_utils::make_http_response(
                         404,
                         "Not Found",
                         "{\"ok\":false,\"error\":\"not found\"}"
