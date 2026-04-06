@@ -23,6 +23,22 @@ using std::cout;
 namespace {
 const char* kLastSelectedVideoFile = ".last_selected_video";
 
+FILE* platform_popen(const char* command, const char* mode) {
+#ifdef _WIN32
+    return _popen(command, mode);
+#else
+    return popen(command, mode);
+#endif
+}
+
+int platform_pclose(FILE* pipe) {
+#ifdef _WIN32
+    return _pclose(pipe);
+#else
+    return pclose(pipe);
+#endif
+}
+
 std::string shell_escape_single_quotes(const std::string& value) {
     std::string escaped;
     escaped.reserve(value.size() + 2);
@@ -83,7 +99,7 @@ std::string Agent::http_post(const string& url, const string& data) {
         shell_escape_single_quotes(url);
 
     string result;
-    FILE* pipe = popen(cmd.c_str(), "r");
+    FILE* pipe = platform_popen(cmd.c_str(), "r");
     if (!pipe) {
         return result;
     }
@@ -92,7 +108,7 @@ std::string Agent::http_post(const string& url, const string& data) {
     while (fgets(buf, sizeof(buf), pipe)) {
         result += buf;
     }
-    pclose(pipe);
+    platform_pclose(pipe);
     return result;
 }
 

@@ -26,6 +26,20 @@ constexpr socket_t kInvalidSocket = INVALID_SOCKET;
 using socket_t = int;
 constexpr socket_t kInvalidSocket = -1;
 #endif
+constexpr std::intptr_t kStoredInvalidSocket = -1;
+
+static_assert(
+    sizeof(std::intptr_t) >= sizeof(socket_t),
+    "std::intptr_t must be large enough to store native socket type"
+);
+
+std::intptr_t to_stored_socket(socket_t socket) {
+    return static_cast<std::intptr_t>(socket);
+}
+
+socket_t to_native_socket(std::intptr_t socket) {
+    return static_cast<socket_t>(socket);
+}
 
 void close_socket(socket_t fd) {
 #ifdef _WIN32
@@ -60,7 +74,7 @@ LocalControlServer::LocalControlServer(
     get_video_handler_(std::move(get_video_handler)),
     log_handler_(std::move(log_handler)),
     running_(false),
-    server_fd_(kInvalidSocket),
+    server_fd_(kStoredInvalidSocket),
     server_thread_() {}
 
 LocalControlServer::~LocalControlServer() {
@@ -80,18 +94,19 @@ bool LocalControlServer::start() {
     }
 #endif
 
-    server_fd_ = static_cast<int>(socket(AF_INET, SOCK_STREAM, 0));
-    if (server_fd_ == kInvalidSocket) {
+    const socket_t server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_socket == kInvalidSocket) {
         log("LocalControlServer: failed to create socket");
 #ifdef _WIN32
         WSACleanup();
 #endif
         return false;
     }
+    server_fd_ = to_stored_socket(server_socket);
 
     int yes = 1;
     setsockopt(
-        static_cast<socket_t>(server_fd_),
+        to_native_socket(server_fd_),
         SOL_SOCKET,
         SO_REUSEADDR,
         reinterpret_cast<const char*>(&yes),
@@ -103,20 +118,20 @@ bool LocalControlServer::start() {
     addr.sin_port = htons(static_cast<uint16_t>(port_));
     addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 
-    if (bind(static_cast<socket_t>(server_fd_), reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
+    if (bind(to_native_socket(server_fd_), reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) != 0) {
         log("LocalControlServer: bind failed on 127.0.0.1:" + std::to_string(port_));
-        close_socket(static_cast<socket_t>(server_fd_));
-        server_fd_ = kInvalidSocket;
+        close_socket(to_native_socket(server_fd_));
+        server_fd_ = kStoredInvalidSocket;
 #ifdef _WIN32
         WSACleanup();
 #endif
         return false;
     }
 
-    if (listen(static_cast<socket_t>(server_fd_), 8) != 0) {
+    if (listen(to_native_socket(server_fd_), 8) != 0) {
         log("LocalControlServer: listen failed");
-        close_socket(static_cast<socket_t>(server_fd_));
-        server_fd_ = kInvalidSocket;
+        close_socket(to_native_socket(server_fd_));
+        server_fd_ = kStoredInvalidSocket;
 #ifdef _WIN32
         WSACleanup();
 #endif
@@ -134,14 +149,14 @@ void LocalControlServer::stop() {
         return;
     }
     running_ = false;
-    if (server_fd_ != kInvalidSocket) {
+    if (server_fd_ != kStoredInvalidSocket) {
 #ifdef _WIN32
-        shutdown(static_cast<socket_t>(server_fd_), SD_BOTH);
+        shutdown(to_native_socket(server_fd_), SD_BOTH);
 #else
-        shutdown(static_cast<socket_t>(server_fd_), SHUT_RDWR);
+        shutdown(to_native_socket(server_fd_), SHUT_RDWR);
 #endif
-        close_socket(static_cast<socket_t>(server_fd_));
-        server_fd_ = kInvalidSocket;
+        close_socket(to_native_socket(server_fd_));
+        server_fd_ = kStoredInvalidSocket;
     }
 #ifdef _WIN32
     WSACleanup();
@@ -157,7 +172,7 @@ void LocalControlServer::server_loop() {
         sockaddr_in client_addr{};
         socklen_t client_len = sizeof(client_addr);
         const socket_t client_fd = accept(
-            static_cast<socket_t>(server_fd_),
+            to_native_socket(server_fd_),
             reinterpret_cast<sockaddr*>(&client_addr),
             &client_len
         );

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <thread>
@@ -29,7 +30,7 @@ private:
     LogHandler log_handler_;
 
     std::atomic<bool> running_;
-    int server_fd_;
+    std::intptr_t server_fd_;
     std::thread server_thread_;
 
     void server_loop();
