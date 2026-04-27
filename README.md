@@ -37,15 +37,95 @@
 Система построена на модульной архитектуре, обеспечивающей простоту расширения и поддержки:
 
 ```mermaid
-graph TD
-    A[Agent Core] --> CM[ConfigManager]
-    A --> L[Logger]
-    A --> SM[SessionManager]
-    A --> TM[TaskManager]
-    TM --> TE[TaskExecutor]
-    SM --> HC[HttpClient]
-    TM --> HC
-    HC <--> S((Remote API))
+flowchart LR
+    AGENT["Agent"]
+    SERVER["Server"]
+
+    AGENT -- "interacts with" --> SERVER
+
+    subgraph SERVER_ZONE["Server Actions"]
+        direction LR
+        SA1([Process Task Execution Request])
+        SA2([Register Agent])
+        SA3([Agree Instruction Format])
+        SA4([Receive Results from Agent])
+
+        SB1([Issue Task Instructions])
+        SB2([No Task Available])
+        SB3([Handle Registration Refusal])
+        SB4([Acknowledge / Error Code])
+        SB5([Issue Session Number])
+        SB6([Issue User ID])
+
+        SA1 -. "if task available" .-> SB1
+        SA1 -. "if no task" .-> SB2
+        SA1 -. "on failure" .-> SB3
+        SA2 -. "process results" .-> SB4
+        SA3 -. "on success" .-> SB5
+        SA4 -. "on success" .-> SB6
+    end
+
+    subgraph AGENT_ZONE["Agent Actions"]
+        direction LR
+        AA1([Execute Task])
+        AA2([Log Actions and Results])
+        AA3([Check Server Availability])
+        AA4([Register on Server])
+        AA5([Request Task Execution])
+
+        AB1([Transfer Files])
+        AB2([Send Data to Server])
+        AB3([Increase Request Interval])
+        AB4([Send UID and Get Confirmation])
+        AB5([Handle Registration Failure])
+        AB6([Receive Instruction])
+
+        AC1([Send Execution Code/Error])
+        AC2([Send Session Number])
+        AC3([Report Errors])
+        AC4([Wait for Instruction])
+
+        AA1 --> AB1
+        AA1 --> AB2
+        AA2 --> AB2
+        AA3 -- "if failed" --> AB3
+        AA4 --> AB4
+        AA4 -. "if failed" .-> AB5
+        AA5 -. "if available" .-> AB6
+        AB6 -. "if no instruction" .-> AC4
+        AB2 --> AC1
+        AB2 --> AC2
+        AB2 --> AC3
+    end
+
+    subgraph SETTINGS["Agent Settings"]
+        direction LR
+        ST1([Server Address])
+        ST2([Session])
+        ST3([Agent UID])
+        ST4([Action Log])
+        ST5([Result Folder])
+        ST6([Task Folder])
+        ST7(["Program Settings (PATH ENV)"])
+    end
+
+    SERVER --> SA1
+    SERVER --> SA2
+    SERVER --> SA3
+    SERVER --> SA4
+
+    AGENT --> AA1
+    AGENT --> AA2
+    AGENT --> AA3
+    AGENT --> AA4
+    AGENT --> AA5
+    AGENT --> AB2
+    AGENT --> AB6
+
+    classDef actor fill:#ffffff,stroke:#444,color:#111,stroke-width:1px;
+    classDef usecase fill:#f4f4f4,stroke:#888,color:#111,stroke-width:1px;
+    class AGENT,SERVER actor;
+    class SA1,SA2,SA3,SA4,SB1,SB2,SB3,SB4,SB5,SB6,AA1,AA2,AA3,AA4,AA5,AB1,AB2,AB3,AB4,AB5,AB6,AC1,AC2,AC3,AC4,ST1,ST2,ST3,ST4,ST5,ST6,ST7 usecase;
 ```
 
 *   **Agent Core:** Центральный цикл управления (регистрация -> опрос -> выполнение).
