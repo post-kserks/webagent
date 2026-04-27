@@ -164,19 +164,29 @@ flowchart LR
 | Параметр | Описание | Пример |
 | :--- | :--- | :--- |
 | `uid` | Уникальный идентификатор агента | `"agent_007"` |
+| `descr` | Описание агента для сервера | `"web-agent"` |
 | `server_uri` | Базовый URL управляющего сервера | `"https://api.server.com/"` |
 | `request_interval` | Частота опроса сервера (в секундах) | `5` |
+| `max_retry_interval` | Максимальный интервал при потере соединения (Exponential Backoff) | `60` |
 | `local_control_port` | Локальный API для связи фронта и агента | `8787` |
 | `log_file` | Путь к файлу журнала событий | `"./logs/agent.log"` |
+| `tasks_folder` | Директория для хранения скачанных файлов задач | `"./tasks"` |
+| `results_folder` | Директория с файлами-результатами (отправляются при `FILE`) | `"./results"` |
+| `path_env` | Переопределение переменной PATH (для curl/wget в фоновом режиме) | `"/usr/local/bin:/usr/bin:/bin"` |
 
 Пример файла:
 ```json
 {
   "uid": "bmstu_agent_01",
+  "descr": "web-agent",
   "server_uri": "https://xdev.arkcom.ru:9999/app/api/",
   "request_interval": 10,
+  "max_retry_interval": 60,
   "local_control_port": 8787,
-  "max_retry_interval": 60
+  "log_file": "./logs/agent.log",
+  "tasks_folder": "./tasks",
+  "results_folder": "./results",
+  "path_env": "/usr/local/bin:/usr/bin:/bin"
 }
 ```
 

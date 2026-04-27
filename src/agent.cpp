@@ -155,39 +155,34 @@ bool Agent::upload_results_folder() {
 
 // Send execution result (code + optional message) back to server
 bool Agent::send_task_result(int exec_code, const string& message) {
-    json req = {
+    json result_json = {
         {"UID",         uid_},
         {"access_code", access_code_},
-        {"session_id",  session_id_},
-        {"exec_code",   exec_code},
-        {"message",     message}
+        {"message",     message},
+        {"files",       0},
+        {"session_id",  session_id_}
     };
-    const string resp = http_post(server_uri_ + "wa_result/", req.dump());
+    
+    const string path_prefix = path_env_.empty()
+        ? ""
+        : "PATH=" + shell_escape_single_quotes(path_env_) + ":$PATH ";
+
+    const string cmd =
+        path_prefix +
+        "curl -s -k -X POST " +
+        "-F result_code=" + std::to_string(exec_code) + " " +
+        "-F result=" + shell_escape_single_quotes(result_json.dump()) + " " +
+        shell_escape_single_quotes(server_uri_ + "wa_result/");
+
+    string resp;
+    FILE* pipe = platform_popen(cmd.c_str(), "r");
+    if (pipe) {
+        char buf[256];
+        while (fgets(buf, sizeof(buf), pipe)) resp += buf;
+        platform_pclose(pipe);
+    }
     log("Task result response: " + resp);
     return !resp.empty();
-}
-
-// ─────────────────────────── registration ─────────────────────────────────
-bool Agent::register_on_server() {
-    log("Registering on server...");
-    json req = {{"UID", uid_}, {"descr", descr_}};
-    const string resp = http_post(server_uri_ + "wa_reg/", req.dump());
-    log("Registration response: " + resp);
-    if (resp.empty()) return false;
-    try {
-        const auto j = json::parse(resp);
-        if (j.contains("access_code")) {
-            access_code_ = j["access_code"].get<string>();
-            log("Access code received: " + access_code_);
-            std::ofstream(".access_code_" + uid_) << access_code_;
-            log("Access code saved.");
-            return true;
-        }
-        if (j.contains("msg")) log("Registration refused: " + j["msg"].get<string>());
-    } catch (...) {
-        log("Failed to parse registration response.");
-    }
-    return false;
 }
 
 // ─────────────────────────── video helpers ────────────────────────────────
@@ -276,16 +271,51 @@ Agent::Agent(const string& config_file)
     log("PATH env:        " + (path_env_.empty() ? "(system default)" : path_env_));
     log("Initial video:   " + selected_video_);
 
-    // Try loading saved access code; otherwise register
-    std::ifstream code_file(".access_code_" + uid_);
+    // Try loading saved access code from current or parent directory
+    string code_filename = ".access_code_" + uid_;
+    std::ifstream code_file(code_filename);
+    if (!code_file.is_open()) {
+        // Try parent directory if running from build/
+        code_file.open("../" + code_filename);
+    }
+
     if (code_file.is_open()) {
         std::getline(code_file, access_code_);
         log("Loaded saved access code: " + access_code_);
     } else {
-        // Retry registration with backoff until success
+        // Retry registration with backoff until success or fatal error
         int reg_wait = interval_;
-        while (!register_on_server()) {
-            log("Registration failed. Retrying in " + std::to_string(reg_wait) + "s...");
+        while (true) {
+            log("Registering on server...");
+            json req = {{"UID", uid_}, {"descr", descr_}};
+            string resp = http_post(server_uri_ + "wa_reg/", req.dump());
+            
+            if (resp.empty()) {
+                log("No response from server. Retrying in " + std::to_string(reg_wait) + "s...");
+            } else {
+                try {
+                    auto j = json::parse(resp);
+                    if (j.contains("access_code")) {
+                        access_code_ = j["access_code"].get<string>();
+                        log("Access code received: " + access_code_);
+                        std::ofstream(code_filename) << access_code_;
+                        log("Access code saved.");
+                        break; // Success
+                    }
+                    
+                    string s_code = j.value("code_responce", "");
+                    if (s_code == "-3") {
+                        log("CRITICAL: Agent already registered on server, but no local access_code found.");
+                        log("Please change UID in config or restore the .access_code file.");
+                        break; // Stop retrying
+                    }
+                    
+                    log("Registration refused: " + j.value("msg", "unknown error"));
+                } catch (...) {
+                    log("Failed to parse registration response: " + resp);
+                }
+            }
+            
             std::this_thread::sleep_for(std::chrono::seconds(reg_wait));
             reg_wait = std::min(reg_wait * 2, max_retry_interval_);
         }
