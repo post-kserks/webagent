@@ -3,9 +3,10 @@
   "descr": "web-agent",
   "server_uri": "https://xdev.arkcom.ru:9999/app/webagent1/api/",
   "request_interval": 5,
-  "local_control_port": 8787,
   "max_retry_interval": 60,
+  "local_control_port": 8787,
+  "log_file": "./logs/agent.log",
   "tasks_folder": "./tasks",
   "results_folder": "./results",
-  "log_file": "./logs/agent.log"
+  "path_env": "/usr/local/bin:/usr/bin:/bin"
 }
