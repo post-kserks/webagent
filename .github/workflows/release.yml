@@ -1,0 +1,59 @@
+name: Build and Release
+
+on:
+  release:
+    types: [published]  # Запускается при публикации релиза на GitHub
+  workflow_dispatch:    # Позволяет запускать вручную из вкладки Actions
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact_name: webagent-linux
+            asset_name: webagent-linux-x64
+          - os: windows-latest
+            artifact_name: webagent-windows.exe
+            asset_name: webagent-windows-x64.exe
+          - os: macos-latest
+            artifact_name: webagent-macos
+            asset_name: webagent-macos-universal
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+
+    - name: Upload Artifact to Release
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{github.workspace}}/build/${{env.BUILD_TYPE}}/webagent${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+
+  upload:
+    name: Upload Release Assets
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Upload to Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: artifacts/**/webagent-*
